@@ -1,110 +1,200 @@
-from flask import Flask, jsonify, render_template
-import feedparser  # This library fetches and parses the alert feed
-from twilio.rest import Client # This is for sending SMS
-
-# --- Configuration ---
-# Your Account SID and Auth Token from twilio.com/console
-# DO NOT put your real keys here if you share this code.
-TWILIO_ACCOUNT_SID = "AC4f1483a5fae4d92953da74268b18869e"  # <-- PUT YOUR KEY HERE
-TWILIO_AUTH_TOKEN = "123f763563cc0a95d1a7c105450b48b8"    # <-- PUT YOUR KEY HERE
-TWILIO_PHONE_NUMBER = "+917339474485"        # <-- Your Twilio number
-USER_PHONE_NUMBER = "+917339474485"            # <-- The user's number to alert
-
-# This is the official NOAA/US Tsunami Warning Center Feed
-TSUNAMI_FEED_URL = "https://www.tsunami.gov/events/xml/PAAQAtom.xml"
+import os
+import json
+import feedparser
+import requests
+import re # <-- NEW IMPORT
+from flask import Flask, jsonify, render_template, request
+from twilio.rest import Client
+from geopy.distance import geodesic # <-- NEW IMPORT
 
 # Create the Flask web server
 app = Flask(__name__)
 
-# --- Background "AI" Logic (Simplified) ---
-# In a real app, this would run on a separate schedule, not just on server start
-def check_for_new_disaster():
-    """
-    Checks the feed for new alerts.
-    This is a FAKE "AI" and "rule engine".
-    A real app would store alerts in a database to see which ones are "new".
-    """
-    print("Checking for disaster alerts...")
-    feed = feedparser.parse(TSUNAMI_FEED_URL)
-    
-    if not feed.entries:
-        print("Feed is empty, no alerts found.")
+# --- Configuration ---
+# Load secret keys from Render's Environment Variables
+TWILIO_ACCOUNT_SID = os.environ.get("AC4f1483a5fae4d92953da74268b18869e")
+TWILIO_AUTH_TOKEN = os.environ.get("123f763563cc0a95d1a7c105450b48b8")
+TWILIO_PHONE_NUMBER = os.environ.get("917339474485")
+
+# This is the official NOAA/US Tsunami Warning Center Feed
+TSUNAMI_FEED_URL = "https.www.tsunami.gov/events/xml/PAAQAtom.xml"
+
+# --- OneSignal Configuration (if you use it) ---
+ONESIGNAL_APP_ID = os.environ.get("c12adc07-b70b-4765-be23-4fb9d7c4cc95")
+ONESIGNAL_API_KEY = os.environ.get("os_v2_app_yevnyb5xbndwlprdj645prgmsvrlrrxqb74ewrnkjd3tkhru3wibftdnz66ofznzbznni3icsroxf7muih2uashsptbaj3mpqlfrhoa")
+
+
+# --- UPDATED: Twilio SMS Function ---
+# This function now sends an alert to a SPECIFIC user
+def send_sms_to_user(user_phone, title, summary):
+    """Sends an SMS to a specific user using Twilio"""
+    if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN:
+        print("Twilio env vars not set. Cannot send SMS.")
         return
-
-    # Get the very latest alert from the feed
-    latest_alert = feed.entries[0]
-    alert_title = latest_alert.title
-    
-    # SIMPLE RULE ENGINE:
-    # If the title contains "Warning" or "Watch", we treat it as serious.
-    if "Warning" in alert_title or "Watch" in alert_title:
-        print(f"!!! SERIOUS ALERT DETECTED: {alert_title}")
         
-        # --- SEND THE SMS ALERT ---
-        # We only send the alert if the keys are not the default ones
-        if "YOUR_ACCOUNT_SID_HERE" not in TWILIO_ACCOUNT_SID:
-            send_sms_alert(alert_title, latest_alert.summary)
-        else:
-            print("Twilio is not configured. Skipping SMS.")
-    else:
-        print(f"Informational alert found: {alert_title}")
-
-def send_sms_alert(title, summary):
-    """Sends an SMS using Twilio"""
     try:
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
         
-        message_body = f"URGENT DISASTER ALERT:\n{title}\n\n{summary}"
+        message_body = f"URGENT ALERT (Near You):\n{title}\n\n{summary}"
         
         message = client.messages.create(
             body=message_body,
             from_=TWILIO_PHONE_NUMBER,
-            to=USER_PHONE_NUMBER
+            to=user_phone 
         )
-        print(f"Successfully sent SMS with SID: {message.sid}")
+        print(f"Successfully sent SMS to {user_phone}")
     except Exception as e:
-        print(f"Error sending SMS: {e}")
-        print("Please check your Twilio SID, Token, and Phone Numbers.")
+        print(f"Error sending SMS to {user_phone}: {e}")
 
+# --- OneSignal Push Function (Unchanged) ---
+def send_push_notification(title, message):
+    if not ONESIGNAL_APP_ID or not ONESIGNAL_API_KEY:
+        print("OneSignal is not configured. Skipping push notification.")
+        return
+    
+    print("Sending push notification...")
+    headers = {
+        "accept": "application/json",
+        "Authorization": f"Basic {ONESIGNAL_API_KEY}",
+        "content-type": "application/json"
+    }
+    payload = {
+        "app_id": ONESIGNAL_APP_ID,
+        "included_segments": ["Subscribed Users"],
+        "headings": {"en": title},
+        "contents": {"en": message}
+    }
+    try:
+        response = requests.post(
+            "https.api.onesignal.com/api/v1/notifications",
+            headers=headers,
+            data=json.dumps(payload)
+        )
+        response.raise_for_status()
+        print(f"Push notification sent successfully!")
+    except requests.exceptions.RequestException as e:
+        print(f"Error sending push notification: {e}")
+
+
+# --- UPDATED: Background Disaster Check ---
+def check_for_new_disaster():
+    """
+    Checks feed, gets disaster location, and finds users nearby.
+    """
+    print("Checking for disaster alerts...")
+    feed = feedparser.parse(TSUNAMI_FEED_URL)
+    if not feed.entries:
+        print("Feed is empty.")
+        return
+
+    latest_alert = feed.entries[0]
+    alert_title = latest_alert.title
+    alert_summary = latest_alert.summary
+
+    # --- 1. Find the disaster's location (Lat/Lon) ---
+    # We will use Regex to find "Lat/Lon: 12.345 / -123.456" in the summary
+    location_match = re.search(r"Lat/Lon:\s*(-?\d+\.\d+)\s*/\s*(-?\d+\.\d+)", alert_summary)
+    
+    if not location_match:
+        print(f"Could not find Lat/Lon for alert: {alert_title}")
+        return # Can't analyze without a location
+
+    disaster_lat = float(location_match.group(1))
+    disaster_lon = float(location_match.group(2))
+    disaster_location = (disaster_lat, disaster_lon)
+    print(f"Disaster location found: {disaster_location}")
+
+    # --- 2. Get all users from your database ---
+    #
+    # --- !! CRITICAL DATABASE STEP !! ---
+    #
+    # This is where you MUST fetch all users from your database.
+    # Example DB command:
+    # all_users = db.execute("SELECT phone, latitude, longitude FROM users")
+    #
+    # For this demo, I will use a FAKE list.
+    #
+    print("Fetching users (DEMO LIST)...")
+    all_users = [
+        # This first user is your test number, but with a FAKE location
+        {"phone": os.environ.get("USER_PHONE_NUMBER"), "latitude": 66.500, "longitude": -162.500}, # Fake location near disaster
+        {"phone": os.environ.get("USER_PHONE_NUMBER"), "latitude": 40.7128, "longitude": -74.0060}  # Fake New York location
+    ]
+
+    # --- 3. Analyze: Find users in the danger zone ---
+    
+    # How many miles counts as "nearby"?
+    DANGER_ZONE_MILES = 500 
+
+    for user in all_users:
+        if not user.get("phone"):
+            continue
+            
+        user_location = (user["latitude"], user["longitude"])
+        
+        # Calculate distance
+        distance = geodesic(user_location, disaster_location).miles
+        
+        print(f"Checking user {user['phone']}. Distance: {distance:.2f} miles.")
+
+        if distance <= DANGER_ZONE_MILES:
+            print(f"!!! ALERTING USER: {user['phone']} is IN danger zone! !!!")
+            
+            # Send the SMS *to this specific user*
+            send_sms_to_user(user["phone"], alert_title, alert_summary)
+        else:
+            print(f"User {user['phone']} is safe.")
+            
+            
+# --- Website Page (For the User) ---
+@app.route("/")
+def index():
+    return render_template("index.html")
 
 # --- API Endpoint (For the Frontend) ---
 @app.route("/api/get-latest-alert")
 def get_latest_alert():
-    """
-    This is an API endpoint.
-    The frontend will call this URL to get data.
-    """
+    # (This function is unchanged from our last version)
     feed = feedparser.parse(TSUNAMI_FEED_URL)
     
     if not feed.entries:
-        return jsonify({"title": "No Alerts Active", "summary": "No current alerts from the feed."})
+        return jsonify({"title": "No Alerts Active", "summary": "...", "link": "#", "count": 0})
     
-    # Get the latest entry
     latest_alert = feed.entries[0]
+    total_alerts = len(feed.entries)
     
-    # Return the data as JSON
     return jsonify({
         "title": latest_alert.title,
         "summary": latest_alert.summary,
-        "link": latest_alert.link
+        "link": latest_alert.link,
+        "count": total_alerts
     })
 
-
-# --- Website Page (For the User) ---
-@app.route("/")
-def index():
+# --- UPDATED API ENDPOINT (For Subscribing) ---
+@app.route("/api/subscribe", methods=["POST"])
+def subscribe():
     """
-    This is the main webpage.
-    It just serves the 'index.html' file.
+    Receives a phone number AND location from the frontend.
     """
-    return render_template("index.html")
+    data = request.get_json()
+    phone_number = data.get('phone')
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
 
+    if not phone_number or not latitude or not longitude:
+        return jsonify({"message": "Error: Phone, lat, and lon are required."}), 400
 
-# --- Run the App ---
-if __name__ == "__main__":
-    # 1. Check for disasters once when the server starts
-    check_for_new_disaster()
-    
-    # 2. Start the web server to answer requests
-    # debug=True reloads the server when you change code
-    app.run(debug=True)
+    #
+    # --- !! CRITICAL DATABASE STEP !! ---
+    #
+    # This is where you MUST save the data to your database.
+    # Without this, the server forgets the user immediately.
+    #
+    # Example DB command:
+    # db.execute("INSERT INTO users (phone, latitude, longitude) VALUES (?, ?, ?)",
+    #            phone_number, latitude, longitude)
+    #
+    print(f"!!! NEW SUBSCRIBER: {phone_number} at ({latitude}, {longitude}) !!!")
+    print("!!! (Remember: This is not saved to a database yet) !!!")
+
+    return jsonify({"message": "Subscribed successfully!"})
