@@ -4,36 +4,76 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Disaster Alert System</title>
+    
+    <script src="https.cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+          appId: "c12adc07-b70b-4765-be23-4fb9d7c4cc95",
+          safari_web_id: "web.onesignal.auto.2e92f9d5-12a5-4675-93ec-24ce5a91bfb8",
+          notifyButton: {
+            enable: true,
+          },
+        });
+      });
+    </script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 20px;
+            margin: 40px;
             background-color: #f9f9f9;
+            color: #333;
         }
-        h1 {
-            color: #b90000;
-        }
-        #alert-box {
-            border: 2px solid #ccc;
+        h1 { color: #b90000; }
+        h2 { color: #333; }
+        h3 { color: #555; }
+        #alert-box, #subscribe-box {
+            border: 1px solid #ccc;
             background-color: #fff;
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
         }
         #alert-box.warning {
             border-color: #b90000;
             background-color: #fff0f0;
         }
-        #loading {
-            font-style: italic;
-            color: #555;
+        #alert-summary {
+            line-height: 1.6;
         }
+        #subscribe-box input {
+            padding: 8px;
+            margin-right: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        #subscribe-box button {
+            padding: 8px 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #subscribe-box button:hover { background-color: #0056b3; }
     </style>
 </head>
 <body>
 
     <h1>Disaster Alert System</h1>
-    <p>Showing the latest active alert from the Tsunami Warning Center.</p>
+    <p>Get live disaster alerts via SMS and Web Push.</p>
+
+    <div id="subscribe-box">
+        <h3>Get SMS Alerts</h3>
+        <p>Enter your phone number. Your browser will ask for your location to send relevant alerts.</p>
+        <input type="tel" id="phone-number-input" placeholder="+15551234567">
+        <button id="subscribe-button">Subscribe</button>
+        <p id="subscribe-status"></p> </div>
+    <hr>
+
+    <h2>Active Alerts Found: <span id="alert-count">...</span></h2>
 
     <div id="alert-box">
         <h2 id="alert-title">
@@ -44,10 +84,8 @@
     </div>
 
     <script>
-        // This JavaScript runs in the user's browser
-        
+        // --- 1. Fetch Latest Alert ---
         async function fetchLatestAlert() {
-            // This calls the backend API endpoint we created in Python
             const response = await fetch('/api/get-latest-alert');
             const data = await response.json();
             
@@ -56,14 +94,16 @@
             const summaryEl = document.getElementById('alert-summary');
             const linkEl = document.getElementById('alert-link');
             const boxEl = document.getElementById('alert-box');
+            const countEl = document.getElementById('alert-count');
             
             // Remove the "Loading..." message
             document.getElementById('loading').style.display = 'none';
 
             // Update the page with the data from the API
             titleEl.textContent = data.title;
-            summaryEl.innerHTML = data.summary;
+            summaryEl.innerHTML = data.summary; // Use .innerHTML to render HTML
             linkEl.href = data.link;
+            countEl.textContent = data.count;
 
             // Simple logic to make the box red if it's a real warning
             if (data.title.toLowerCase().includes("warning") || data.title.toLowerCase().includes("watch")) {
@@ -71,8 +111,79 @@
             }
         }
 
-        // Run the function when the page loads
+        // Run the alert fetch when the page loads
         fetchLatestAlert();
+
+        // --- 2. Handle SMS Subscription (UPDATED) ---
+        const subscribeButton = document.getElementById('subscribe-button');
+        const phoneInput = document.getElementById('phone-number-input');
+        const statusText = document.getElementById('subscribe-status');
+
+        subscribeButton.addEventListener('click', () => {
+            const phoneNumber = phoneInput.value;
+
+            // Basic check
+            if (!phoneNumber || phoneNumber.length < 10) {
+                statusText.textContent = "Please enter a valid phone number.";
+                statusText.style.color = "red";
+                return;
+            }
+
+            statusText.textContent = "Asking for your location...";
+            statusText.style.color = "black";
+
+            // --- THIS IS THE NEW GEOLOCATION CODE ---
+            if (!navigator.geolocation) {
+                statusText.textContent = "Geolocation is not supported by your browser.";
+                statusText.style.color = "red";
+                return;
+            }
+
+            // Ask for location
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    // Success! We have the location.
+                    const latitude = position.coords.latitude;
+                    const longitude = position.coords.longitude;
+                    
+                    statusText.textContent = "Location found! Subscribing...";
+                    
+                    // Now send ALL data to the backend
+                    subscribeUser(phoneNumber, latitude, longitude);
+                },
+                (error) => {
+                    // User denied location
+                    statusText.textContent = "Error: You must allow location to subscribe.";
+                    statusText.style.color = "red";
+                }
+            );
+        });
+
+        async function subscribeUser(phone, lat, lon) {
+            try {
+                // Send phone AND location to the backend
+                const response = await fetch('/api/subscribe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        phone: phone,
+                        latitude: lat,
+                        longitude: lon
+                    }),
+                });
+
+                if (!response.ok) throw new Error("Server error.");
+
+                const result = await response.json();
+                statusText.textContent = result.message;
+                statusText.style.color = "green";
+                phoneInput.value = ""; // Clear the input box
+
+            } catch (error) {
+                statusText.textContent = "Subscription failed. Please try again.";
+                statusText.style.color = "red";
+            }
+        }
     </script>
 
 </body>
