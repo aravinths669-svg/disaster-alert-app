@@ -1,5 +1,6 @@
 Flask
 feedparser
 requests
-twilio
 gunicorn
+twilio
+geopy
