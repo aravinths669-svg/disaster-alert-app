@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disaster Alert System</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 20px;
+            background-color: #f9f9f9;
+        }
+        h1 {
+            color: #b90000;
+        }
+        #alert-box {
+            border: 2px solid #ccc;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        #alert-box.warning {
+            border-color: #b90000;
+            background-color: #fff0f0;
+        }
+        #loading {
+            font-style: italic;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Disaster Alert System</h1>
+    <p>Showing the latest active alert from the Tsunami Warning Center.</p>
+
+    <div id="alert-box">
+        <h2 id="alert-title">
+            <span id="loading">Loading latest alert...</span>
+        </h2>
+        <p id="alert-summary"></p>
+        <a id="alert-link" href="#" target="_blank">Read More</a>
+    </div>
+
+    <script>
+        // This JavaScript runs in the user's browser
+        
+        async function fetchLatestAlert() {
+            // This calls the backend API endpoint we created in Python
+            const response = await fetch('/api/get-latest-alert');
+            const data = await response.json();
+            
+            // Get the HTML elements to update
+            const titleEl = document.getElementById('alert-title');
+            const summaryEl = document.getElementById('alert-summary');
+            const linkEl = document.getElementById('alert-link');
+            const boxEl = document.getElementById('alert-box');
+            
+            // Remove the "Loading..." message
+            document.getElementById('loading').style.display = 'none';
+
+            // Update the page with the data from the API
+            titleEl.textContent = data.title;
+            summaryEl.innerHTML = data.summary;
+            linkEl.href = data.link;
+
+            // Simple logic to make the box red if it's a real warning
+            if (data.title.toLowerCase().includes("warning") || data.title.toLowerCase().includes("watch")) {
+                boxEl.classList.add("warning");
+            }
+        }
+
+        // Run the function when the page loads
+        fetchLatestAlert();
+    </script>
+
+</body>
+</html>
