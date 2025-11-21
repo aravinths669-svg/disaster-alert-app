@@ -3,188 +3,255 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Disaster Alert System</title>
+    <title>Disaster Alert & Management System</title>
     
-    <script src="https.cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       OneSignalDeferred.push(async function(OneSignal) {
         await OneSignal.init({
-          appId: "c12adc07-b70b-4765-be23-4fb9d7c4cc95",
+          appId: "c12adc07-b70b-4765-be23-4fb9d7c4cc95", // Your App ID
           safari_web_id: "web.onesignal.auto.2e92f9d5-12a5-4675-93ec-24ce5a91bfb8",
-          notifyButton: {
-            enable: true,
-          },
+          notifyButton: { enable: true },
         });
       });
     </script>
+
     <style>
+        /* General Styles */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 40px;
-            background-color: #f9f9f9;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
             color: #333;
-        }
-        h1 { color: #b90000; }
-        h2 { color: #333; }
-        h3 { color: #555; }
-        #alert-box, #subscribe-box {
-            border: 1px solid #ccc;
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-        #alert-box.warning {
-            border-color: #b90000;
-            background-color: #fff0f0;
-        }
-        #alert-summary {
             line-height: 1.6;
         }
-        #subscribe-box input {
-            padding: 8px;
-            margin-right: 10px;
+        
+        /* Navigation Bar */
+        nav {
+            background-color: #b90000;
+            color: white;
+            padding: 15px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        nav h1 { margin: 0; font-size: 1.2rem; }
+        nav ul { list-style: none; margin: 0; padding: 0; display: flex; }
+        nav ul li { margin-left: 20px; }
+        nav a { color: white; text-decoration: none; font-weight: bold; }
+        nav a:hover { text-decoration: underline; }
+
+        /* Layout Containers */
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        /* Section Styles */
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        h2 { color: #b90000; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        h3 { color: #444; margin-top: 20px; }
+        
+        /* Form Styles */
+        input[type="tel"] {
+            padding: 10px;
+            width: 60%;
             border: 1px solid #ccc;
             border-radius: 4px;
+            font-size: 16px;
         }
-        #subscribe-box button {
-            padding: 8px 12px;
+        button.primary {
+            padding: 10px 20px;
             background-color: #007bff;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            font-size: 16px;
         }
-        #subscribe-box button:hover { background-color: #0056b3; }
+        button.primary:hover { background-color: #0056b3; }
+
+        /* Alert Box Styles */
+        #alert-box.warning {
+            border-left: 5px solid #b90000;
+            background-color: #fff5f5;
+        }
+        #alert-box.safe {
+            border-left: 5px solid #28a745;
+        }
+
+        /* Educational Section Styles */
+        .cycle-step {
+            display: flex;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+        .step-icon {
+            background: #b90000;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            font-weight: bold;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
     </style>
 </head>
 <body>
 
-    <h1>Disaster Alert System</h1>
-    <p>Get live disaster alerts via SMS and Web Push.</p>
+    <nav>
+        <h1>DisasterGuard</h1>
+        <ul>
+            <li><a href="#alerts">Live Alerts</a></li>
+            <li><a href="#guide">Management Guide</a></li>
+        </ul>
+    </nav>
 
-    <div id="subscribe-box">
-        <h3>Get SMS Alerts</h3>
-        <p>Enter your phone number. Your browser will ask for your location to send relevant alerts.</p>
-        <input type="tel" id="phone-number-input" placeholder="+15551234567">
-        <button id="subscribe-button">Subscribe</button>
-        <p id="subscribe-status"></p> </div>
-    <hr>
+    <div class="container">
 
-    <h2>Active Alerts Found: <span id="alert-count">...</span></h2>
+        <section id="alerts">
+            <div class="card">
+                <h2>📡 Live Disaster Alert System</h2>
+                <p>Subscribe to receive personalized alerts based on your real-time location.</p>
+                
+                <div id="subscribe-box">
+                    <h3>Subscribe for Protection</h3>
+                    <p>Enter your phone number. We will check your location to verify if you are in a danger zone.</p>
+                    <input type="tel" id="phone-number-input" placeholder="+15551234567">
+                    <button class="primary" id="subscribe-button">Subscribe</button>
+                    <p id="subscribe-status"></p>
+                </div>
+            </div>
 
-    <div id="alert-box">
-        <h2 id="alert-title">
-            <span id="loading">Loading latest alert...</span>
-        </h2>
-        <p id="alert-summary"></p>
-        <a id="alert-link" href="#" target="_blank">Read More</a>
+            <div class="card" id="alert-box">
+                <h2>⚠️ Current Status</h2>
+                <h3>Active Alerts in System: <span id="alert-count">...</span></h3>
+                <hr>
+                <h3 id="alert-title"><span id="loading">Checking feeds...</span></h3>
+                <p id="alert-summary"></p>
+                <a id="alert-link" href="#" target="_blank">Read Official Bulletin</a>
+            </div>
+        </section>
+
+        <section id="guide">
+            <div class="card">
+                <h2>📘 Disaster Management Cycle</h2>
+                
+
+[Image of disaster management cycle]
+
+                <p>Disaster management is not just about responding to an event; it is a continuous cycle of planning and action.</p>
+
+                <div class="cycle-step">
+                    <div class="step-icon">1</div>
+                    <div>
+                        <h3>Pre-Disaster: Mitigation & Preparedness</h3>
+                        <p><strong>Goal:</strong> Minimize risk before disaster strikes.</p>
+                        <p>This is where <em>our website</em> helps. By subscribing to our Early Warning System, you gain the critical time needed to prepare or evacuate.</p>
+                    </div>
+                </div>
+
+                <div class="cycle-step">
+                    <div class="step-icon">2</div>
+                    <div>
+                        <h3>During Disaster: Response</h3>
+                        <p><strong>Goal:</strong> Save lives and property immediately.</p>
+                        <p>Real-time communication is key. Our system uses SMS and Push Notifications to deliver accurate information instantly, cutting through confusion.</p>
+                    </div>
+                </div>
+
+                <div class="cycle-step">
+                    <div class="step-icon">3</div>
+                    <div>
+                        <h3>Post-Disaster: Recovery</h3>
+                        <p><strong>Goal:</strong> Restore normalcy and learn.</p>
+                        <p>After the event, communities rebuild. Data from this system can help analyze how quickly warnings were received and improve future response times.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
     </div>
 
     <script>
-        // --- 1. Fetch Latest Alert ---
+        // --- 1. Fetch Latest Alert Logic ---
         async function fetchLatestAlert() {
             const response = await fetch('/api/get-latest-alert');
             const data = await response.json();
             
-            // Get the HTML elements to update
-            const titleEl = document.getElementById('alert-title');
-            const summaryEl = document.getElementById('alert-summary');
-            const linkEl = document.getElementById('alert-link');
-            const boxEl = document.getElementById('alert-box');
-            const countEl = document.getElementById('alert-count');
-            
-            // Remove the "Loading..." message
             document.getElementById('loading').style.display = 'none';
+            document.getElementById('alert-title').textContent = data.title;
+            document.getElementById('alert-summary').innerHTML = data.summary;
+            document.getElementById('alert-link').href = data.link;
+            document.getElementById('alert-count').textContent = data.count;
 
-            // Update the page with the data from the API
-            titleEl.textContent = data.title;
-            summaryEl.innerHTML = data.summary; // Use .innerHTML to render HTML
-            linkEl.href = data.link;
-            countEl.textContent = data.count;
-
-            // Simple logic to make the box red if it's a real warning
+            const boxEl = document.getElementById('alert-box');
             if (data.title.toLowerCase().includes("warning") || data.title.toLowerCase().includes("watch")) {
                 boxEl.classList.add("warning");
+            } else {
+                boxEl.classList.add("safe");
             }
         }
-
-        // Run the alert fetch when the page loads
         fetchLatestAlert();
 
-        // --- 2. Handle SMS Subscription (UPDATED) ---
+        // --- 2. Subscribe Logic ---
         const subscribeButton = document.getElementById('subscribe-button');
         const phoneInput = document.getElementById('phone-number-input');
         const statusText = document.getElementById('subscribe-status');
 
         subscribeButton.addEventListener('click', () => {
             const phoneNumber = phoneInput.value;
-
-            // Basic check
             if (!phoneNumber || phoneNumber.length < 10) {
                 statusText.textContent = "Please enter a valid phone number.";
                 statusText.style.color = "red";
                 return;
             }
+            statusText.textContent = "Verifying location...";
+            statusText.style.color = "blue";
 
-            statusText.textContent = "Asking for your location...";
-            statusText.style.color = "black";
-
-            // --- THIS IS THE NEW GEOLOCATION CODE ---
             if (!navigator.geolocation) {
-                statusText.textContent = "Geolocation is not supported by your browser.";
-                statusText.style.color = "red";
+                statusText.textContent = "Geolocation not supported.";
                 return;
             }
 
-            // Ask for location
             navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    // Success! We have the location.
-                    const latitude = position.coords.latitude;
-                    const longitude = position.coords.longitude;
-                    
-                    statusText.textContent = "Location found! Subscribing...";
-                    
-                    // Now send ALL data to the backend
-                    subscribeUser(phoneNumber, latitude, longitude);
-                },
-                (error) => {
-                    // User denied location
-                    statusText.textContent = "Error: You must allow location to subscribe.";
-                    statusText.style.color = "red";
-                }
+                (position) => subscribeUser(phoneNumber, position.coords.latitude, position.coords.longitude),
+                () => { statusText.textContent = "Location denied. Cannot subscribe."; statusText.style.color = "red"; }
             );
         });
 
         async function subscribeUser(phone, lat, lon) {
             try {
-                // Send phone AND location to the backend
                 const response = await fetch('/api/subscribe', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        phone: phone,
-                        latitude: lat,
-                        longitude: lon
-                    }),
+                    body: JSON.stringify({ phone: phone, latitude: lat, longitude: lon }),
                 });
-
-                if (!response.ok) throw new Error("Server error.");
-
                 const result = await response.json();
                 statusText.textContent = result.message;
                 statusText.style.color = "green";
-                phoneInput.value = ""; // Clear the input box
-
+                phoneInput.value = "";
             } catch (error) {
-                statusText.textContent = "Subscription failed. Please try again.";
+                statusText.textContent = "Error connecting to server.";
                 statusText.style.color = "red";
             }
         }
     </script>
-
 </body>
 </html>
